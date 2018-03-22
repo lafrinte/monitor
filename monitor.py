@@ -10,11 +10,11 @@ from multiprocessing import Queue as p_queue
 from multiprocessing import Process
 from daemons import daemonizer
 
-PATH = '2.logs'
+PATH = '/tmp/2.logs'
 LOG = '/tmp/monitor.logs'
 KAFKA = '172.17.0.2:9092'
 TOPIC = b'test'
-SINDB = os.path.join(os.getenv('HOME'), '.sindb_{}'.format(PATH))
+SINDB = os.path.join(os.getenv('HOME'), '.sindb_{}'.format(os.path.basename(PATH)))
 
 
 class Error(Exception):
@@ -166,6 +166,9 @@ class KafkaProductor(object):
         self.queue = _queue
         self._kafka_connect()
 
+        if isinstance(self.topic, bytes) is not True:
+            self.topic = str.encode(str(self.topic))
+
     def _kafka_connect(self):
 
         try:
@@ -175,7 +178,7 @@ class KafkaProductor(object):
 
     @property
     def start(self):
-        self.session = self.client.topics[str.encode(self.topic)]
+        self.session = self.client.topics[self.topic]
 
         with self.session.get_producer(delivery_reports=True) as producer:
             count = 0
