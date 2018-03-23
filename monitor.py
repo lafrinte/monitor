@@ -10,11 +10,11 @@ from multiprocessing import Queue as p_queue
 from multiprocessing import Process
 from daemons import daemonizer
 
-PATH = '2.logs'
+PATH = '/tmp/2.logs'
 LOG = '/tmp/monitor.logs'
 KAFKA = '172.17.0.2:9092'
 TOPIC = b'test'
-SINDB = os.path.join(os.getenv('HOME'), '.sindb_{}'.format(PATH))
+SINDB = os.path.join(os.getenv('HOME'), '.sindb_{}'.format(os.path.basename(PATH)))
 
 
 class Error(Exception):
@@ -45,7 +45,7 @@ class EventHandler(pyinotify.ProcessEvent):
     def __init__(self, *args, **kwargs):
         super(EventHandler, self).__init__(*args, **kwargs)
         self.path = kwargs.get('filepath')
-        self.file = open(kwargs.get('filepath'))
+        self.file = open(kwargs.get('filepath'), 'rb')
         self.queue = kwargs.get('queue')
         self.f_info = {
             '_st_ino': os.stat(kwargs.get('filepath'))[1],
@@ -55,7 +55,7 @@ class EventHandler(pyinotify.ProcessEvent):
         self.msg_head = re.compile(r'^\[')
         self.msg = list()
         self.is_prompt = False
-        self.service_tag = self.get_mark()
+        self.service_tag = ''
         self._init_file_seek()
 
     def _init_file_seek(self):
@@ -103,7 +103,9 @@ class EventHandler(pyinotify.ProcessEvent):
         :param new_line: the new line read from target file, string type
         :return: msg, string type. Only when the multiline string have been linked, it will return the linked string
         """
-
+        if isinstance(new_line, bytes) is True:
+            new_line = new_line.decode('utf-8')
+			
         if self.msg_head.search(new_line) and self.is_prompt is False:
             self.msg.append(new_line)
             self.is_prompt = True
@@ -166,6 +168,9 @@ class KafkaProductor(object):
         self.queue = _queue
         self._kafka_connect()
 
+        if isinstance(self.topic, bytes) is not True:
+            self.topic = str.encode(str(self.topic))
+
     def _kafka_connect(self):
 
         try:
@@ -175,14 +180,16 @@ class KafkaProductor(object):
 
     @property
     def start(self):
-        self.session = self.client.topics[str.encode(self.topic)]
+        self.session = self.client.topics[self.topic]
 
         with self.session.get_producer(delivery_reports=True) as producer:
             count = 0
 
             while True:
                 count += 1
-                producer.produce(self.queue.get(), partition_key=str.encode(str(count)))
+
+                # producer.produce will only access bytes, translate the str to bytes first
+                producer.produce(self.queue.get().encode(), partition_key=str.encode(str(count)))
                 if count % 10 == 0:
                     while True:
                         try:
