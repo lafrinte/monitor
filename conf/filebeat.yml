@@ -1,0 +1,31 @@
+filebeat.prospectors:
+- input_type:
+  paths:
+    - /User/lafrinte/workstation/code/monitor/logs/monitor*.logs
+  fields:
+    software: esb
+    product: dazhanggui
+    ip: 172.17.0.2
+    topic: esb-monitor
+  multiline:
+    patterns: '^\[
+    negate:  false
+    match: after
+- input_type:
+  paths:
+    - /User/lafrinte/workstation/code/monitor/logs/run*.logs
+  fields:
+    software: esb
+    product: dazhanggui
+    ip: 172.17.0.2
+    topic: esb-run
+
+output.kafka:
+  enable: true
+  topics: '%{[fields.topic]}'
+  bootstrap_server: ['172.17.0.2:9092','172.17.0.3:9092']
+
+# only for debug
+output.file:
+  enable: false
+  path: /User/lafrinte/workstation/code/monitor/logs/output.log
