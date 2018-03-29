@@ -4,6 +4,7 @@
 import os
 import re
 import time
+import json
 import pyinotify
 
 
@@ -96,7 +97,7 @@ class MultilineEventHandler(BaseEventHandler):
     def __init__(self, *args, **kwargs):
         super(MultilineEventHandler, self).__init__(*args, **kwargs)
         self.queue = kwargs.get('queue')
-        self.msg_head = kwargs.get('multi_head_pattern')
+        self.msg_head = re.compile(kwargs.get('multi_head_pattern'))
         self.msg = dict()
         self.is_prompt = dict()
 
@@ -143,19 +144,32 @@ class TagsEventHandler(BaseEventHandler):
     def __init__(self, *args, **kwargs):
         super(TagsEventHandler, self).__init__(*args, **kwargs)
         self.queue = kwargs.get('queue')
-        self.tag_head = kwargs.get('multi_head_pattern')
-        self.msg = dict()
-        self.is_prompt = dict()
+        self.tag_head = re.compile(kwargs.get('tag_head_pattern'))
+        self.service_tag = dict()
 
-wm = pyinotify.WatchManager()
-mask = pyinotify.IN_MODIFY
-handler = EventHandler(queue=Queue())
-notifier = pyinotify.Notifier(wm, handler)
-wm.add_watch(path='/tmp/*.logs', mask=mask, rec=True, do_glob=True, quiet=True)
-notifier.loop()
+    def special_list(self, key_word):
+        if self.service_tag.__contains__(key_word) is not True:
+            self.service_tag[key_word] = BaseEventHandler.get_mark(self)
 
+    def process_IN_MODIFY(self, event):
+        BaseEventHandler.process_IN_MODIFY(self, event)
+        self.special_list(self.key_word)
+        self.cut_lines()
 
+    def add_service_tags(self, new_line, key_word):
 
+        if self.tag_head.search(new_line):
+            self.service_tag[key_word] = self.get_mark()
 
+        return '{0} ssc:{1}'.format(new_line, self.service_tag[key_word])
 
+    def cut_lines(self):
+        with open(self.path, 'rb') as f:
+            f_size = os.stat(self.path)[6]
 
+            while self.offset < f_size:
+                f.seek(self.offset)
+                line = f.readline()
+                self.offset += len(line)
+                self.queue.put_nowait(self.add_service_tags(line, self.key_word))
+            self.save_offset(self.offset)
