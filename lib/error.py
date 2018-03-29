@@ -42,3 +42,13 @@ class YmlParseErr(Error):
         self.path = path
         if msg is None:
             self.msg = "%s is not a legal yaml configuration" % repr(self.path)
+
+
+class PathNotExist(Error):
+
+    def __init__(self, path, msg=None):
+        Error.__init__(self, msg)
+        self.msg = msg
+        self.path = path
+        if msg is None:
+            self.msg = "%s is not exist" % repr(self.path)
