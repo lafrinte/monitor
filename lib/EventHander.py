@@ -14,6 +14,7 @@ class BaseEventHandler(pyinotify.ProcessEvent):
         super(BaseEventHandler, self).__init__(*args, **kwargs)
         self.sindb = os.path.join(os.getenv('HOME'), '.sindb')
         self.locale = os.getenv('LANG').lower().split('.')[-1]
+        self.fields = kwargs.get('fields') or None
 
         if os.path.isfile(self.sindb) is not True:
             f = open(self.sindb, 'w')
@@ -82,7 +83,8 @@ class SimpleEventHandler(BaseEventHandler):
                 f.seek(self.offset)
                 line = f.readline()
                 self.offset += len(line)
-                self.queue.put_nowait(BaseEventHandler.decode(self, line))
+                self.queue.put_nowait(json.dumps({'fields': self.fields,
+                                                  'messages': BaseEventHandler.decode(self, line)}))
             self.save_offset(self.offset)
 
 
@@ -135,7 +137,8 @@ class MultilineEventHandler(BaseEventHandler):
                 msg = self.multline_parse(line, self.key_word)
 
                 if msg:
-                    self.queue[self.key_word].put_nowait(msg)
+                    self.queue[self.key_word].put_nowait({'fields': self.fields,
+                                                          'messages': msg})
             self.save_offset(self.offset)
 
 
@@ -160,8 +163,8 @@ class TagsEventHandler(BaseEventHandler):
 
         if self.tag_head.search(new_line):
             self.service_tag[key_word] = self.get_mark()
-
-        return '{0} ssc:{1}'.format(new_line, self.service_tag[key_word])
+        self.fields['ssc': self.service_tag[key_word]]
+        return new_line
 
     def cut_lines(self):
         with open(self.path, 'rb') as f:
@@ -171,5 +174,6 @@ class TagsEventHandler(BaseEventHandler):
                 f.seek(self.offset)
                 line = f.readline()
                 self.offset += len(line)
-                self.queue.put_nowait(self.add_service_tags(line, self.key_word))
+                self.queue.put_nowait({'fields': self.fields,
+                                       'messages': self.add_service_tags(line, self.key_word)})
             self.save_offset(self.offset)
