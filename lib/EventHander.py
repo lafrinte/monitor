@@ -14,7 +14,7 @@ class BaseEventHandler(pyinotify.ProcessEvent):
         super(BaseEventHandler, self).__init__(*args, **kwargs)
         self.sindb = os.path.join(os.getenv('HOME'), '.sindb')
         self.locale = os.getenv('LANG').lower().split('.')[-1]
-        self.fields = kwargs.get('fields') or None
+        self.fields = kwargs.get('fields') or dict()
 
         if os.path.isfile(self.sindb) is not True:
             f = open(self.sindb, 'w')
@@ -22,8 +22,8 @@ class BaseEventHandler(pyinotify.ProcessEvent):
 
     def decode(self, line):
         if isinstance(line, bytes) is True:
-            msg = line.decode(self.locale)
-        return msg
+            line = line.decode(self.locale)
+        return line
 
     def get_offset(self):
         lines = open(self.sindb).readlines()
@@ -73,6 +73,7 @@ class SimpleEventHandler(BaseEventHandler):
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
+        self.fields['path'] = self.path
         self.cut_lines()
 
     def cut_lines(self):
@@ -109,6 +110,7 @@ class MultilineEventHandler(BaseEventHandler):
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
+        self.fields['path'] = self.path
         self.special_list(self.key_word)
         self.cut_lines()
 
@@ -135,7 +137,7 @@ class MultilineEventHandler(BaseEventHandler):
                 msg = self.multline_parse(line, self.key_word)
 
                 if msg:
-                    self.queue.put_nowait({'fields': self.fields, 'messages': msg})
+                    self.queue.put_nowait(json.dumps({'fields': self.fields, 'messages': msg}))
             self.save_offset(self.offset)
 
 
@@ -153,6 +155,7 @@ class TagsEventHandler(BaseEventHandler):
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
+        self.fields['path'] = self.path
         self.special_list(self.key_word)
         self.cut_lines()
 
@@ -172,6 +175,36 @@ class TagsEventHandler(BaseEventHandler):
                 f.seek(self.offset)
                 line = f.readline()
                 self.offset += len(line)
-                self.queue.put_nowait({'fields': self.fields,
-                                       'messages': self.add_service_tags(line, self.key_word).replace('\n', '')})
+                self.queue.put_nowait(json.dumps({'fields': self.fields,
+                         'messages': self.add_service_tags(line, self.key_word).replace('\n', '')}))
+            self.save_offset(self.offset)
+
+
+class TagAndMultilineEventHandler(MultilineEventHandler, TagsEventHandler):
+
+    def __init__(self, *args, **kwargs):
+        super(TagAndMultilineEventHandler, self).__init__(*args, **kwargs)
+
+    def special_list(self, key_word):
+        TagsEventHandler.special_list(self)
+        MultilineEventHandler.special_list(self)
+
+    def process_IN_MODIFY(self, event):
+        BaseEventHandler.process_IN_MODIFY(self, event)
+        self.special_list(self.key_word)
+        self.cut_lines()
+
+    def cut_lines(self):
+        with open(self.path, 'rb') as f:
+            f_size = os.stat(self.path)[6]
+
+            while self.offset < f_size:
+                f.seek(self.offset)
+                line = f.readline()
+                self.offset += len(line)
+                msg = self.multline_parse(line, self.key_word)
+
+                if msg:
+                    self.queue.put_nowait(json.dumps({'fields': self.fields,
+                            'messages': TagsEventHandler.add_service_tags(self, msg, self.key_word).replace('\n', '')}))
             self.save_offset(self.offset)
