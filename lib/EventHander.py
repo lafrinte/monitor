@@ -3,9 +3,9 @@
 
 import os
 import re
-import time
 import json
 import pyinotify
+from time import time
 
 
 class BaseEventHandler(pyinotify.ProcessEvent):
@@ -84,7 +84,7 @@ class SimpleEventHandler(BaseEventHandler):
                 line = f.readline()
                 self.offset += len(line)
                 self.queue.put_nowait(json.dumps({'fields': self.fields,
-                                                  'messages': BaseEventHandler.decode(self, line)}))
+                                                  'messages': BaseEventHandler.decode(self, line).replace('\n', '')}))
             self.save_offset(self.offset)
 
 
@@ -92,8 +92,6 @@ class MultilineEventHandler(BaseEventHandler):
 
     """
     Describe: 1. For parsing multiline logs without tags.
-    Attention: self.queue is a dict, the key is a string linked by inode and device no. with delimiter ','
-               the value is a multiprocess.Queue()
     """
 
     def __init__(self, *args, **kwargs):
@@ -107,7 +105,7 @@ class MultilineEventHandler(BaseEventHandler):
         if self.msg.__contains__(key_word) is not True:
             self.msg[key_word] = list()
         if self.is_prompt.__contains__(key_word) is not True:
-            self.is_prompt[key_word] = list()
+            self.is_prompt[key_word] = False
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
@@ -121,7 +119,7 @@ class MultilineEventHandler(BaseEventHandler):
             self.msg[key_word].append(new_line)
             self.is_prompt[key_word] = True
         elif self.msg_head.search(new_line) and self.is_prompt[key_word] is True:
-            msg, self.msg[key_word] = ''.join(self.msg[key_word]), [new_line]
+            msg, self.msg[key_word] = ''.join(self.msg[key_word]).replace('\n', ' ').strip(), [new_line]
             return msg
         else:
             self.msg[key_word].append(new_line)
@@ -137,8 +135,7 @@ class MultilineEventHandler(BaseEventHandler):
                 msg = self.multline_parse(line, self.key_word)
 
                 if msg:
-                    self.queue[self.key_word].put_nowait({'fields': self.fields,
-                                                          'messages': msg})
+                    self.queue.put_nowait({'fields': self.fields, 'messages': msg})
             self.save_offset(self.offset)
 
 
@@ -161,9 +158,10 @@ class TagsEventHandler(BaseEventHandler):
 
     def add_service_tags(self, new_line, key_word):
 
+        new_line = BaseEventHandler.decode(self, new_line)
         if self.tag_head.search(new_line):
-            self.service_tag[key_word] = self.get_mark()
-        self.fields['ssc': self.service_tag[key_word]]
+            self.service_tag[key_word] = BaseEventHandler.get_mark(self)
+        self.fields['ssc'] = self.service_tag[key_word]
         return new_line
 
     def cut_lines(self):
@@ -175,5 +173,5 @@ class TagsEventHandler(BaseEventHandler):
                 line = f.readline()
                 self.offset += len(line)
                 self.queue.put_nowait({'fields': self.fields,
-                                       'messages': self.add_service_tags(line, self.key_word)})
+                                       'messages': self.add_service_tags(line, self.key_word).replace('\n', '')})
             self.save_offset(self.offset)
