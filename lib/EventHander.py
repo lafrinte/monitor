@@ -9,12 +9,15 @@ from time import time
 
 
 class BaseEventHandler(pyinotify.ProcessEvent):
-
     def __init__(self, *args, **kwargs):
         super(BaseEventHandler, self).__init__(*args, **kwargs)
         self.sindb = os.path.join(os.getenv('HOME'), '.sindb')
         self.locale = os.getenv('LANG').lower().split('.')[-1]
         self.fields = kwargs.get('fields') or dict()
+        self.key_word = None
+        self.key_pattern = None
+        self.offset = None
+        self.path = None
 
         if os.path.isfile(self.sindb) is not True:
             f = open(self.sindb, 'w')
@@ -22,7 +25,7 @@ class BaseEventHandler(pyinotify.ProcessEvent):
 
     def decode(self, line):
         if isinstance(line, bytes) is True:
-            line = line.decode(self.locale)
+            line = line.decode(self.locale) d
         return line
 
     def get_offset(self):
@@ -61,7 +64,6 @@ class BaseEventHandler(pyinotify.ProcessEvent):
 
 
 class SimpleEventHandler(BaseEventHandler):
-
     """
     :Describe: 1. For parsing without multiline and tags.
                2. Do not focus the order of the lines
@@ -84,13 +86,12 @@ class SimpleEventHandler(BaseEventHandler):
                 f.seek(self.offset)
                 line = f.readline()
                 self.offset += len(line)
-                self.queue.put_nowait(json.dumps({'fields': self.fields,
-                                                  'messages': BaseEventHandler.decode(self, line).replace('\n', '')}))
+                self.queue.put_nowait(json.dumps(
+                    dict(fields=self.fields, messages=BaseEventHandler.decode(self, line).replace('\n', ''))))
             self.save_offset(self.offset)
 
 
 class MultilineEventHandler(BaseEventHandler):
-
     """
     Describe: 1. For parsing multiline logs without tags.
     """
@@ -137,12 +138,11 @@ class MultilineEventHandler(BaseEventHandler):
                 msg = self.multline_parse(line, self.key_word)
 
                 if msg:
-                    self.queue.put_nowait(json.dumps({'fields': self.fields, 'messages': msg}))
+                    self.queue.put_nowait(json.dumps(dict(fields=self.fields, messages=msg)))
             self.save_offset(self.offset)
 
 
 class TagsEventHandler(BaseEventHandler):
-
     def __init__(self, *args, **kwargs):
         super(TagsEventHandler, self).__init__(*args, **kwargs)
         self.queue = kwargs.get('queue')
@@ -165,7 +165,7 @@ class TagsEventHandler(BaseEventHandler):
         if self.tag_head.search(new_line):
             self.service_tag[key_word] = BaseEventHandler.get_mark(self)
         self.fields['ssc'] = self.service_tag[key_word]
-        return new_line
+        return new_line.replace('\n', '')
 
     def cut_lines(self):
         with open(self.path, 'rb') as f:
@@ -175,13 +175,12 @@ class TagsEventHandler(BaseEventHandler):
                 f.seek(self.offset)
                 line = f.readline()
                 self.offset += len(line)
-                self.queue.put_nowait(json.dumps({'fields': self.fields,
-                         'messages': self.add_service_tags(line, self.key_word).replace('\n', '')}))
+                self.queue.put_nowait(json.dumps(
+                    dict(fields=self.fields, messages=self.add_service_tags(line, self.key_word))))
             self.save_offset(self.offset)
 
 
 class TagAndMultilineEventHandler(MultilineEventHandler, TagsEventHandler):
-
     def __init__(self, *args, **kwargs):
         super(TagAndMultilineEventHandler, self).__init__(*args, **kwargs)
 
@@ -205,6 +204,6 @@ class TagAndMultilineEventHandler(MultilineEventHandler, TagsEventHandler):
                 msg = self.multline_parse(line, self.key_word)
 
                 if msg:
-                    self.queue.put_nowait(json.dumps({'fields': self.fields,
-                            'messages': TagsEventHandler.add_service_tags(self, msg, self.key_word).replace('\n', '')}))
+                    self.queue.put_nowait(json.dumps(
+                        dict(fields=self.fields, messages=TagsEventHandler.add_service_tags(self, msg, self.key_word))))
             self.save_offset(self.offset)

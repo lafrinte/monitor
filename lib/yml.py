@@ -21,6 +21,9 @@ class BeatsConfParse(object):
         except:
             raise YmlParseErr(self.path)
 
+    def data_processing(self):
+        return [{'prospectors': x, 'output': self.data['output'][0]} for x in self.data['filebeat.prospectors']]
+
     @property
     def run(self):
-        return self.data
+        return self.data_processing()
