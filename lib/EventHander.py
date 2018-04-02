@@ -25,7 +25,7 @@ class BaseEventHandler(pyinotify.ProcessEvent):
 
     def decode(self, line):
         if isinstance(line, bytes) is True:
-            line = line.decode(self.locale) d
+            line = line.decode(self.locale)
         return line
 
     def get_offset(self):
