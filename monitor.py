@@ -1,20 +1,46 @@
-#!/usr/bin/env python
+i#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import os
 import re
 import time
 import pyinotify
+import functools
 from pykafka import KafkaClient
 from multiprocessing import Queue as p_queue
 from multiprocessing import Process
-from daemons import daemonizer
 
-PATH = '/tmp/2.logs'
+
+PATH = '/tmp/1.logs'
 LOG = '/tmp/monitor.logs'
 KAFKA = '172.17.0.2:9092'
 TOPIC = b'test'
 SINDB = os.path.join(os.getenv('HOME'), '.sindb_{}'.format(os.path.basename(PATH)))
+
+
+def daemon_init(func):
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            pid = os.fork()
+            if pid > 0:
+                os._exit(0)
+        except OSError:
+            os._exit(1)
+
+        os.setsid()
+        os.chdir("/")
+        os.umask(0)
+
+        try:
+            pid = os.fork()
+            if pid > 0:
+                os._exit(0)
+        except OSError:
+            os._exit(1)
+        func(*args, **kwargs)
+    return wrapper
 
 
 class Error(Exception):
@@ -105,7 +131,7 @@ class EventHandler(pyinotify.ProcessEvent):
         """
         if isinstance(new_line, bytes) is True:
             new_line = new_line.decode('utf-8')
-			
+
         if self.msg_head.search(new_line) and self.is_prompt is False:
             self.msg.append(new_line)
             self.is_prompt = True
@@ -210,7 +236,7 @@ def kafka_productor(kafka, topic, _queue):
     _p.start
 
 
-@daemonizer.run(pidfile="/tmp/monitor.pid")
+@daemon_init
 def main():
     queue = p_queue()
     monitor = Process(name="Monitor", target=file_monitor, args=(PATH, queue))
