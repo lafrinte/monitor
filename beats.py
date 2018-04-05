@@ -11,6 +11,7 @@ from multiprocessing import Queue
 from multiprocessing import Process
 
 from .lib.logs import Logger
+from .lib.daemon import daemon_init
 from .lib.yml import BeatsConfParse
 from .lib.kafka import KafkaProductor
 from .lib.EventHander import SimpleEventHandler, MultilineEventHandler, TagsEventHandler, TagAndMultilineEventHandler
@@ -68,6 +69,7 @@ def processing_consumers(_queues):
     group.join()
 
 
+@daemon_init
 def main():
     conf_data = BeatsConfParse(CONF).run
     queue = Queue()

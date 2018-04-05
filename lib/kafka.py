@@ -35,7 +35,7 @@ class KafkaProductor(object):
                 count += 1
 
                 # producer.produce will only access bytes, translate the str to bytes first
-                producer.produce(self.queue.get().encode(), partition_key=str.encode(str(count)))
+                producer.produce(self.queue.get().encode())
                 if count % 10 == 0:
                     while True:
                         try:
