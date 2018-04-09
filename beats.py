@@ -5,24 +5,22 @@ import os
 import sys
 import gevent
 import pyinotify
-import gevent.queue
 from gevent.pool import Group
+from gevent.queue import Queue as G_Queue
 from multiprocessing import Queue
 from multiprocessing import Process
 
-from .lib.logs import Logger
-from .lib.daemon import daemon_init
-from .lib.yml import BeatsConfParse
-from .lib.kafka import KafkaProductor
-from .lib.EventHander import SimpleEventHandler, MultilineEventHandler, TagsEventHandler, TagAndMultilineEventHandler
+from lib.daemon import daemon_init
+from lib.yml import BeatsConfParse
+from lib.kafka import KafkaProductor
+from lib.EventHander import SimpleEventHandler, MultilineEventHandler, TagsEventHandler, TagAndMultilineEventHandler
 
 root = os.path.dirname(os.path.abspath(__file__))
-logger = Logger('{0}/logs/{1}.logs'.format(root, sys.argv[0].split('.')[0]), sys.argv[0])
 CONF = '{0}/conf/filebeat.yml'.format(root)
 
 
 def start_a_monitor(**kwargs):
-    g_queue = gevent.queue.Queue()
+    g_queue = G_Queue()
     kwargs['queue'].put(dict(queue=g_queue, topic=kwargs['topics'], host=kwargs['bootstrap_server']))
 
     _wm = pyinotify.WatchManager()
@@ -75,6 +73,10 @@ def main():
     queue = Queue()
     productors = Process(name="productors", target=processing_productors, args=(conf_data, queue))
     consumers = Process(name="comsumers", target=processing_consumers, args=(queue))
+    productors.start()
+    consumers.start()
+    productors.join()
+    consumers.join()
 
 
 if __name__ == '__main__':

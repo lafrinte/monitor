@@ -190,6 +190,7 @@ class TagAndMultilineEventHandler(MultilineEventHandler, TagsEventHandler):
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
+        self.fields['path'] = self.path
         self.special_list(self.key_word)
         self.cut_lines()
 
