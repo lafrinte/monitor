@@ -5,7 +5,7 @@ from gevent import spawn
 from gevent import sleep
 from gevent.pool import Group
 from pykafka import KafkaClient
-from error import KafkaConnectErr
+from .error import KafkaConnectErr
 
 
 class KafkaProductor(object):
@@ -25,6 +25,9 @@ class KafkaProductor(object):
         if isinstance(topic, bytes) is not True:
             topic = str.encode(str(topic))
         return topic
+
+    def switch(self):
+        sleep(0)
 
     def is_connection(self, host, topic, queue):
 
