@@ -1,42 +1,57 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from gevent import spawn
+from gevent import sleep
+from gevent.pool import Group
 from pykafka import KafkaClient
-from .error import KafkaConnectErr
+from error import KafkaConnectErr
 
 
 class KafkaProductor(object):
 
-    def __init__(self, addr, topic, _queue):
-        self.kafka = addr
-        self.topic = topic
-        self.session = None
-        self.queue = _queue
-        self._kafka_connect()
+    def __init__(self, queues):
+        self.queues = queues
+        self.kafka = None
+        self.topic = None
+        self.sessions = None
+        self.group = None
+        self._init_parse()
 
-        if isinstance(self.topic, bytes) is not True:
-            self.topic = str.encode(str(self.topic))
+    def _init_parse(self):
+        self.sessions = [self.is_connection(data['kafka'], data['topic'], data['queue']) for data in self.queues]
 
-    def _kafka_connect(self):
+    def encode_topic(self, topic):
+        if isinstance(topic, bytes) is not True:
+            topic = str.encode(str(topic))
+        return topic
+
+    def is_connection(self, host, topic, queue):
 
         try:
-            self.client = KafkaClient(hosts=self.kafka)
+            client = KafkaClient(hosts=host)
+            session = client.topics[self.encode_topic(topic)]
         except:
-            raise KafkaConnectErr(self.kafka)
+            raise KafkaConnectErr(host)
+        return (session, queue)
 
-    @property
-    def start(self):
-        self.session = self.client.topics[self.topic]
+    def start_a_producer(self, session):
 
-        with self.session.get_producer(delivery_reports=True) as producer:
+        _session, _queue = session[0], session[1]
+        with _session.get_producer(delivery_reports=True, use_rdkafka=True) as producer:
             count = 0
 
             while True:
-                count += 1
+                try:
+                    msg = _queue.get_nowait()
+                except:
+                    sleep(0)
+                    continue
 
+                count += 1
                 # producer.produce will only access bytes, translate the str to bytes first
-                producer.produce(self.queue.get().encode())
-                if count % 10 == 0:
+                producer.produce(msg.encode())
+                if count % 1000 == 0:
                     while True:
                         try:
                             msg, exc = producer.get_delivery_report(block=False)
@@ -44,3 +59,11 @@ class KafkaProductor(object):
                                 print('Failed to deliver msg {}: {}'.format(msg.partition_key, repr(exc)))
                         except:
                             break
+
+    @property
+    def start(self):
+        self.group = Group()
+
+        for session in self.sessions:
+            self.group.add(spawn(self.start_a_producer, session))
+        self.group.join()
