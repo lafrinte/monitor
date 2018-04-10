@@ -1,0 +1,20 @@
+prospectors:
+- input_type:
+  paths:
+    - /User/lafrinte/workstation/code/monitor/logs/monitor*.logs
+  fields:
+    software: esb
+    product: dazhanggui
+    ip: 172.17.0.2
+    topic: esb-monitor
+  multiline:
+    patterns: '^\['
+    negate:  false
+  tags:
+    forward: 'Service Begin'
+    negate: false
+
+output:
+- kakfa:
+  topics: '%{[fields.topic]}'
+  bootstrap_server: '172.17.0.2:9092,172.17.0.3:9092'
