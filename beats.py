@@ -20,17 +20,20 @@ CONF = '{0}/conf/filebeat.yml'.format(root)
 
 
 def start_a_monitor(**kwargs):
-    kwargs['queue'].put(dict(queue=kwargs['queue'], topic=kwargs['topics'], host=kwargs['bootstrap_server']))
 
     _wm = pyinotify.WatchManager()
     if kwargs.__contains__('multiline') and kwargs.__contains__('tags'):
+        negate = kwargs['multiline'].get('negate') or False
         _handler = TagAndMultilineEventHandler(queue=kwargs['queue'],
                                               fields=kwargs['fields'],
+                                              multi_negate=negate,
                                               tag_head_pattern=kwargs['tags']['forward'],
                                               multi_head_pattern=kwargs['multiline']['patterns'])
     elif kwargs.__contains__('multiline'):
+        negate = kwargs['multiline'].get('negate') or False
         _handler = MultilineEventHandler(queue=kwargs['queue'],
                                          fields=kwargs['fields'],
+                                         multi_negate=negate,
                                          multi_head_pattern=kwargs['multiline']['patterns'])
     elif kwargs.__contains__('tags'):
         _handler = TagsEventHandler(queue=kwargs['queue'],
@@ -46,6 +49,9 @@ def start_a_monitor(**kwargs):
 
 
 def processing_productors(datas, queues):
+
+    # queues is a list contains blank Queue
+    # datas is a dict data parsed from filebeat.yml
     jobs = [start_a_monitor(queue=queue, **data['prospectors'], **data['output']) for data, queue in zip(datas, queues)]
 
     for job in jobs:
@@ -59,18 +65,10 @@ def processing_productors(datas, queues):
             for job in jobs:
                 job.stop()
                 raise
- 
-
-def start_a_kafka(**kwargs):
-    KafkaProductor(host=kwargs['host'], topic=kwargs['topic'], queue=kwargs['queue']).start
 
 
 def processing_consumers(_queues):
-
-    while _queues.empty() is not True:
-        data = _queues.get()
-        group.add(gevent.spawn(start_a_kafka, queue=data['queue'], host=data['host'], topic=data['topic']))
-    group.join()
+    KafkaProductor(_queues).start
 
 
 @daemon_init

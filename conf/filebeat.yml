@@ -12,7 +12,6 @@ prospectors:
     negate:  false
   tags:
     forward: 'Service Begin'
-    negate: false
 
 output:
 - kakfa:
