@@ -10,7 +10,6 @@ from .error import KafkaConnectErr
 
 class KafkaProductor(object):
 
-
     def __init__(self, queues):
         self.queues = queues
         self.kafka = None
