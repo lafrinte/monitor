@@ -99,10 +99,10 @@ class MultilineEventHandler(BaseEventHandler):
     def __init__(self, *args, **kwargs):
         super(MultilineEventHandler, self).__init__(*args, **kwargs)
         self.queue = kwargs.get('queue')
-        self.m_negate = kwargs.get('tag_negate')
+        self.m_negate = kwargs.get('multi_negate')
 
         if self.m_negate:
-            self.msg_head = re.compile(''.join(['!', kwargs.get('multi_head_pattern')]))
+            self.msg_head = re.compile(r'[^({})(\n)]'.format(kwargs.get('multi_head_pattern')))
         else:
             self.msg_head = re.compile(kwargs.get('multi_head_pattern'))
 
@@ -191,8 +191,8 @@ class TagAndMultilineEventHandler(MultilineEventHandler, TagsEventHandler):
         super(TagAndMultilineEventHandler, self).__init__(*args, **kwargs)
 
     def special_list(self, key_word):
-        TagsEventHandler.special_list(self)
-        MultilineEventHandler.special_list(self)
+        TagsEventHandler.special_list(self, key_word)
+        MultilineEventHandler.special_list(self, key_word)
 
     def process_IN_MODIFY(self, event):
         BaseEventHandler.process_IN_MODIFY(self, event)
