@@ -99,7 +99,13 @@ class MultilineEventHandler(BaseEventHandler):
     def __init__(self, *args, **kwargs):
         super(MultilineEventHandler, self).__init__(*args, **kwargs)
         self.queue = kwargs.get('queue')
-        self.msg_head = re.compile(kwargs.get('multi_head_pattern'))
+        self.m_negate = kwargs.get('tag_negate')
+
+        if self.m_negate:
+            self.msg_head = re.compile(''.join(['!', kwargs.get('multi_head_pattern')]))
+        else:
+            self.msg_head = re.compile(kwargs.get('multi_head_pattern'))
+
         self.msg = dict()
         self.is_prompt = dict()
 
