@@ -43,8 +43,8 @@ prospectors:
     topic: esb-monitor
 
 # use multiline module
-# patterns: use to match the specify logs which will treat as the head.
-# negate: default is False, if it set to True, it will match all but the patterns match
+# patterns: The pattern should match what you believe to be an indicator that the field is part of a multi-line event.
+# negate: default is False. a message not matching the pattern will constitute a match of the multiline filter
   multiline:
     patterns: '^\['
     negate: True       
