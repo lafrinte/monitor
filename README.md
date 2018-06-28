@@ -79,6 +79,18 @@ tags:
 
 > attention: forward only requires a string, not regex pattern
 
+Output only support kafka output
+
+> kafka
+
+#### bootstrap_server
+
+The kafka cluster address Beats create a session to.
+
+#### topics
+
+The topic Beats send data to. %{[field.topic]} will use the real value configurated for different files.
+
 > Example:
 
 ```
